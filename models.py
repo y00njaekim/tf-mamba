@@ -4,9 +4,9 @@ import torch.nn.functional as F
 from transformers import WavLMModel
 
 try:
-    from mamba_ssm import Mamba
+    from mamba_ssm import Mamba2
 except ImportError:
-    Mamba = None
+    Mamba2 = None
     print("Warning: mamba-ssm is not installed. Please install it with 'pip install mamba-ssm causal-conv1d'.")
 
 # ==========================================================================================
@@ -24,15 +24,15 @@ class TemporalFrequencyMambaBlock(nn.Module):
     Temporal-Aware 모듈과 Frequency Filter 모듈을 포함합니다.
     """
 
-    def __init__(self, d_model, d_state=16, d_conv=4, expand=2):
+    def __init__(self, d_model, d_state=64, d_conv=4, expand=2):
         super().__init__()
-        if Mamba is None:
+        if Mamba2 is None:
             raise ImportError("Mamba-ssm is not installed. Please install it to use this model.")
 
         self.d_model = d_model
 
         # Temporal-Aware Module
-        self.temporal_mamba = Mamba(
+        self.temporal_mamba = Mamba2(
             d_model=d_model // 2,
             d_state=d_state,
             d_conv=d_conv,
@@ -40,7 +40,7 @@ class TemporalFrequencyMambaBlock(nn.Module):
         )
 
         # Frequency Filter Module
-        self.frequency_mamba = Mamba(
+        self.frequency_mamba = Mamba2(
             d_model=d_model // 2,
             d_state=d_state,
             d_conv=d_conv,
@@ -97,11 +97,11 @@ class TF_Mamba(nn.Module):
     Zhao et al. 2025 논문의 전체 TF-Mamba 모델 아키텍처
     """
 
-    def __init__(self, num_classes, d_model=1024, n_head=8, num_tf_mamba_blocks=4, d_state=16, d_conv=4, expand=2):
+    def __init__(self, num_classes, d_model=1024, n_head=8, num_tf_mamba_blocks=4, d_state=64, d_conv=4, expand=2):
         super().__init__()
 
         # 1. WavLM-Large 특징 추출기
-        self.wavlm = WavLMModel.from_pretrained("microsoft/wavlm-large")
+        self.wavlm = WavLMModel.from_pretrained("microsoft/wavlm-large", use_safetensors=True)
         # WavLM의 특징은 학습되지 않도록 고정 (논문에서 명시적으로 언급되지는 않았지만 일반적인 접근 방식)
         for param in self.wavlm.parameters():
             param.requires_grad = False

@@ -75,26 +75,33 @@ class IEMOCAPDataset(Dataset):
         for session_id in range(1, 6):
             session_dir = os.path.join(self.root_dir, f"Session{session_id}")
             emo_eval_dir = os.path.join(session_dir, "dialog", "EmoEvaluation")
-            wav_dir = os.path.join(session_dir, "dialog", "wav")
+            wav_dir = os.path.join(session_dir, "sentences", "wav")
 
-            for emo_file in os.listdir(emo_eval_dir):
-                if not emo_file.endswith(".txt"):
-                    continue
+            if not os.path.isdir(emo_eval_dir):
+                continue
 
-                with open(os.path.join(emo_eval_dir, emo_file), "r") as f:
-                    lines = f.readlines()
+            for dirpath, _, filenames in os.walk(emo_eval_dir):
+                for emo_file in filenames:
+                    if not emo_file.endswith(".txt"):
+                        continue
 
-                for line in lines:
-                    if line.startswith("[") and line.strip().endswith("]"):
-                        parts = re.split(r"\s+", line.strip())
-                        if len(parts) > 4:
-                            utt_id = parts[3]
-                            emotion = parts[4]
+                    file_path = os.path.join(dirpath, emo_file)
+                    with open(file_path, "r", encoding="latin-1") as f:
+                        lines = f.readlines()
 
-                            if emotion in self.emotions_to_use:
-                                wav_file = os.path.join(wav_dir, f"{utt_id}.wav")
-                                if os.path.exists(wav_file):
-                                    self.samples.append({"path": wav_file, "emotion": self.emotion_map[emotion], "session": session_id})
+                    for line in lines:
+                        if line.startswith("[") and line.strip().endswith("]"):
+                            parts = re.split(r"\s+", line.strip())
+                            if len(parts) > 4:
+                                utt_id = parts[3]
+                                emotion = parts[4]
+
+                                if emotion in self.emotions_to_use:
+                                    # utt_id (e.g., Ses01F_impro01_F000)에서 대화 이름(e.g., Ses01F_impro01) 추출
+                                    dialog_id = "_".join(utt_id.split("_")[:-1])
+                                    wav_file = os.path.join(wav_dir, dialog_id, f"{utt_id}.wav")
+                                    if os.path.exists(wav_file):
+                                        self.samples.append({"path": wav_file, "emotion": self.emotion_map[emotion], "session": session_id})
 
     def __len__(self):
         return len(self.samples)

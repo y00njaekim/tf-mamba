@@ -6,6 +6,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from sklearn.model_selection import KFold
 from sklearn.metrics import accuracy_score, f1_score
+from tqdm import tqdm
 
 from models import TF_Mamba
 from datasets import IEMOCAPDataset, MELDDataset, collate_fn
@@ -17,7 +18,7 @@ def train_one_epoch(model, dataloader, optimizer, criterion_ce, criterion_cmdt, 
     total_loss = 0
     all_preds, all_labels = [], []
 
-    for batch in dataloader:
+    for batch in tqdm(dataloader, desc="Training"):
         waveforms, labels = batch[0].to(device), batch[1].to(device)
 
         optimizer.zero_grad()
@@ -51,7 +52,7 @@ def evaluate(model, dataloader, criterion_ce, criterion_cmdt, lambda_cmdt, devic
     all_preds, all_labels = [], []
 
     with torch.no_grad():
-        for batch in dataloader:
+        for batch in tqdm(dataloader, desc="Evaluating"):
             waveforms, labels = batch[0].to(device), batch[1].to(device)
 
             logits, features = model(waveforms)
@@ -113,6 +114,9 @@ def main(args):
             optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
             criterion_ce = nn.CrossEntropyLoss()
             criterion_cmdt = CMDTLoss(temperature=0.1)
+            
+            best_val_loss = float("inf")
+            best_model_state = None
 
             for epoch in range(args.epochs):
                 train_loss, train_wa, train_ua, train_wf1 = train_one_epoch(
@@ -124,7 +128,20 @@ def main(args):
                     f"Epoch {epoch+1}/{args.epochs} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val WA: {val_wa:.4f} | Val UA: {val_ua:.4f} | Val WF1: {val_wf1:.4f}"
                 )
 
-            fold_results.append({"wa": val_wa, "ua": val_ua, "wf1": val_wf1})
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    best_model_state = model.state_dict()
+            
+            # Load best model state for final evaluation on this fold
+            if best_model_state:
+                model.load_state_dict(best_model_state)
+            
+            # Re-evaluate on validation set with the best model
+            print(f"\nEvaluating Fold {fold+1} with the best model (from epoch with val_loss: {best_val_loss:.4f})...")
+            final_val_loss, final_val_wa, final_val_ua, final_val_wf1 = evaluate(model, val_loader, criterion_ce, criterion_cmdt, args.lambda_cmdt, device)
+            print(f"Best model stats for fold {fold+1}: Val WA={final_val_wa:.4f}, Val UA={final_val_ua:.4f}, Val WF1={final_val_wf1:.4f}")
+
+            fold_results.append({"wa": final_val_wa, "ua": final_val_ua, "wf1": final_val_wf1})
 
         # Average results over folds
         avg_wa = np.mean([r["wa"] for r in fold_results])
