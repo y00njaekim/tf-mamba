@@ -3,6 +3,7 @@ description:
 globs: 
 alwaysApply: true
 ---
+- Python environment  in poetry
 - ML/DL in Python with PyTorch.
 - Never alter the stack without my explicit approval.
 
