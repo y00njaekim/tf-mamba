@@ -1,0 +1,13 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+- Steps: Break large tasks into stages; pause after each for my approval.
+- Planning: Before big changes, write a `plan.md` and await my confirmation.
+- Tracking: Log completed work in `progress.md` and next steps in `TODO.md`.
+
+
+- Debugging: Always explain the cause and proposed fix "before proceeding". Getting code to work correctly is more important than just eliminating errors. If the root cause is unclear, add detailed logs to aid analysis and include them in your explanation.
+
+- Dataset Specification: Before writing any code, first define the required dataset's scheme, format, and provide example values for each datatype as the top priority.

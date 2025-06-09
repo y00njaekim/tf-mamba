@@ -1,0 +1,15 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+- Simplicity: Always prioritize the simplest solution over complexity.
+- No Duplication: Avoid repeating code; reuse existing functionality when possible.
+- Input/Output Examples: Whenever possible, provide the input and output shapes for each function or module, along with example values for debugging and testing purposes.
+- Folder Structure: Organize the project into separate files such as `train.py`, `models.py`, `datasets.p`y, and `loss.py` for overall structure and clarity.
+
+- Principles: Follow SOLID principles (e.g., single responsibility, dependency inversion) where applicable.
+- Context Check: Begin every response with a random emoji (e.g., 🐙) to confirm context retention.
+- Efficiency: Optimize outputs to minimize token usage without sacrificing clarity.
+
+- Language: Write all documentation and code comments in Korean. You may retain original names for technical terms and library identifiers.

@@ -1,0 +1,17 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+- ML/DL in Python with PyTorch.
+- Never alter the stack without my explicit approval.
+
+- Implement robust data loading and preprocessing pipelines.
+- Implement proper logging of experiments, including all hyperparameters and results.
+- Ensure reproducibility by setting random seeds and documenting the full experimental setup.
+- Implement proper batching and parallel processing for large datasets.
+- Use GPU acceleration when available, especially for PyTorch models
+- Implement unit tests for data processing functions and custom model components.
+- Follow PEP 8 style guide for Python code.
+- Use meaningful and descriptive names for variables, functions, and classes.
+- Refer to official documentation for PyTorch libraries for best practices and up-to-date APIs.

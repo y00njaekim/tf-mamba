@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+- Summaries: After each component, summarize what's done.
+- Change Scale: Classify changes as Small, Medium, or Large.
+- Clarification: If my request is unclear, ask me before proceeding.
+- Paper Ambiguity: If there are ambiguous or unclear parts in the implementation details of a paper, consider all possible cases and ask me for clarification.
+
+- Planning: For Large changes, provide an implementation plan and wait for approval.
+- Tracking: Always state what's completed and what's pending.
+- Emotional Cues: If I indicate urgency (e.g., 'This is critical—don't mess up!'), prioritize care and precision.
+- Language: Communicate in Korean at all times unless explicitly requested otherwise.
