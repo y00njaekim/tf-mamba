@@ -3,13 +3,17 @@ import re
 import pandas as pd
 import torch
 import torchaudio
+import soundfile as sf
 from torch.utils.data import Dataset
 
 # ==========================================================================================
 # README: 필수 라이브러리 설치
 #
 # 이 파일을 실행하기 전에 다음 라이브러리를 설치해야 합니다.
-# pip install torch torchaudio pandas
+# pip install torch torchaudio pandas soundfile
+#
+# FFmpeg 지원이 필요합니다. 시스템에 FFmpeg을 설치하세요.
+# (예: Ubuntu/Debian에서 `sudo apt-get install ffmpeg`)
 # ==========================================================================================
 
 # ==========================================================================================
@@ -113,6 +117,10 @@ class IEMOCAPDataset(Dataset):
 
         waveform, sample_rate = torchaudio.load(path)
 
+        # 다중 채널 오디오를 모노로 변환
+        if waveform.shape[0] > 1:
+            waveform = torch.mean(waveform, dim=0, keepdim=True)
+
         if sample_rate != self.target_sample_rate:
             resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=self.target_sample_rate)
             waveform = resampler(waveform)
@@ -135,7 +143,42 @@ class MELDDataset(Dataset):
 
     def _prepare_data(self):
         csv_file = os.path.join(self.root_dir, f"{self.split}_sent_emo.csv")
+        if not os.path.exists(csv_file):
+            raise FileNotFoundError(f"'{csv_file}' 파일을 찾을 수 없습니다. 데이터셋 경로를 확인하세요.")
         df = pd.read_csv(csv_file)
+
+        # 데이터 분할(split)에 따라 실제 오디오 파일이 담긴 디렉토리 경로를 설정합니다.
+        # 데이터셋의 실제 구조가 README에 명시된 구조와 다를 수 있는 점을 감안합니다.
+        if self.split == 'train':
+            # 'train_splits' 또는 'train_samples' 디렉토리 확인
+            samples_dir_options = [os.path.join(self.root_dir, 'train_splits'), os.path.join(self.root_dir, 'train_samples')]
+        elif self.split == 'dev':
+            # 'dev_splits_complete' 또는 'dev_samples' 디렉토리 확인
+            samples_dir_options = [os.path.join(self.root_dir, 'dev_splits_complete'), os.path.join(self.root_dir, 'dev_samples')]
+        elif self.split == 'test':
+            # 'test_splits', 'test_samples', 'output_repeated_splits_test' 디렉토리 확인
+            samples_dir_options = [os.path.join(self.root_dir, 'test_splits'), os.path.join(self.root_dir, 'test_samples'), os.path.join(self.root_dir, 'output_repeated_splits_test')]
+        else:
+            samples_dir_options = [os.path.join(self.root_dir, f'{self.split}_samples')]
+
+        samples_dir = None
+        for path in samples_dir_options:
+            if os.path.exists(path):
+                samples_dir = path
+                break
+
+        # 오디오 샘플 디렉토리를 찾지 못한 경우 오류 처리
+        if samples_dir is None:
+            tar_file_path = os.path.join(self.root_dir, f"{self.split}.tar.gz")
+            if os.path.exists(tar_file_path):
+                raise FileNotFoundError(
+                    f"오디오 샘플 디렉토리를 찾을 수 없습니다. 확인한 경로: {samples_dir_options}. "
+                    f"'{tar_file_path}' 파일이 존재합니다. 압축을 먼저 해제해야 할 수 있습니다. "
+                    f"예: `tar -zxvf {tar_file_path} -C {self.root_dir}`"
+                )
+            else:
+                raise FileNotFoundError(f"오디오 샘플 디렉토리를 찾을 수 없습니다. 확인한 경로: {samples_dir_options}")
+
 
         for _, row in df.iterrows():
             dialogue_id = row["Dialogue_ID"]
@@ -143,9 +186,14 @@ class MELDDataset(Dataset):
             emotion = row["Emotion"]
 
             if emotion in self.emotion_map:
-                wav_file = os.path.join(self.root_dir, f"{self.split}_samples", f"dia{dialogue_id}_utt{utterance_id}.wav")
-                if os.path.exists(wav_file):
-                    self.samples.append({"path": wav_file, "emotion": self.emotion_map[emotion]})
+                # MELD 데이터셋은 .mp4 확장자를 사용하므로, 파일 경로를 .mp4로 우선 탐색
+                audio_file_path = os.path.join(samples_dir, f"dia{dialogue_id}_utt{utterance_id}.mp4")
+                if not os.path.exists(audio_file_path):
+                    # .wav 파일도 확인 (Fallback)
+                    audio_file_path = os.path.join(samples_dir, f"dia{dialogue_id}_utt{utterance_id}.wav")
+
+                if os.path.exists(audio_file_path):
+                    self.samples.append({"path": audio_file_path, "emotion": self.emotion_map[emotion]})
 
     def __len__(self):
         return len(self.samples)
@@ -155,7 +203,17 @@ class MELDDataset(Dataset):
         path = sample["path"]
         emotion = sample["emotion"]
 
-        waveform, sample_rate = torchaudio.load(path)
+        try:
+            # FFmpeg 백엔드를 사용하여 오디오 로드
+            waveform, sample_rate = torchaudio.load(path, backend="ffmpeg")
+        except Exception as e:
+            print(f"'{path}' 파일 로딩 중 오류 발생: {e}")
+            # 오류 발생 시 빈 텐서 반환 또는 다른 예외 처리
+            return torch.zeros(1), -1
+
+        # 다중 채널 오디오를 모노로 변환
+        if waveform.shape[0] > 1:
+            waveform = torch.mean(waveform, dim=0, keepdim=True)
 
         if sample_rate != self.target_sample_rate:
             resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=self.target_sample_rate)
@@ -169,6 +227,12 @@ def collate_fn(batch):
     DataLoader를 위한 collate_fn.
     가변 길이의 오디오 시퀀스를 패딩하여 동일한 길이로 만듭니다.
     """
+    # Filter out samples that failed to load
+    batch = [item for item in batch if item[1] != -1]
+    if not batch:
+        # If all samples in the batch failed, return None or empty tensors
+        return None, None, None if len(batch) > 0 and len(batch[0]) == 3 else None
+
     waveforms, emotions, sessions = [], [], []
     is_iemocap = len(batch[0]) == 3
 
